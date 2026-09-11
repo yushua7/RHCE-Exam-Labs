@@ -1,0 +1,22 @@
+---
+- name: Problematic Playbook for Testing
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Install package with wrong name
+      dnf:
+        name: non-existent-package
+        state: present
+
+    - name: Copy file to non-existent directory
+      copy:
+        src: /tmp/nonexistent-file.txt
+        dest: /nonexistent/directory/file.txt
+
+    - name: Start service with wrong name
+      systemd:
+        name: wrong-service-name
+        state: started
+
+

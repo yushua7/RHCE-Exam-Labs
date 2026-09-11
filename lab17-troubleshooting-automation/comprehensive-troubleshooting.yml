@@ -1,0 +1,139 @@
+---
+- name: Comprehensive Troubleshooting Scenario
+  hosts: webservers
+  become: yes
+
+  vars:
+    web_user: webadmin
+    web_group: webadmin
+    app_port: 8080
+
+  tasks:
+
+    - name: Debug - Starting comprehensive deployment
+      debug:
+        msg: |
+          Starting deployment on {{ inventory_hostname }}
+          Target user: {{ web_user }}
+          Target group: {{ web_group }}
+          Application port: {{ app_port }}
+
+    ###########################################################################
+    # USER + GROUP
+    ###########################################################################
+
+    - name: Create web group
+      group:
+        name: "{{ web_group }}"
+        state: present
+
+    - name: Create web user
+      user:
+        name: "{{ web_user }}"
+        group: "{{ web_group }}"
+        home: /home/{{ web_user }}
+        shell: /bin/bash
+        state: present
+
+    ###########################################################################
+    # APACHE INSTALL + CONFIG
+    ###########################################################################
+
+    - name: Install required packages
+      dnf:
+        name:
+          - httpd
+          - python3-pip
+          - git
+        state: present
+
+    - name: Remove default Apache configs that override ports
+      file:
+        path: "/etc/httpd/conf.d/{{ item }}"
+        state: absent
+      loop:
+        - welcome.conf
+        - autoindex.conf
+        - userdir.conf
+        - ssl.conf
+
+    - name: Allow Apache to bind to custom port in SELinux
+      seport:
+        ports: "{{ app_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
+
+    - name: Open port in firewalld
+      firewalld:
+        port: "{{ app_port }}/tcp"
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Set Apache to listen on custom port
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^Listen'
+        line: "Listen {{ app_port }}"
+        backup: yes
+
+    ###########################################################################
+    # DEPLOY APPLICATION
+    ###########################################################################
+
+    - name: Create application directory
+      file:
+        path: /var/www/myapp
+        state: directory
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+        mode: '0755'
+
+    - name: Deploy index page
+      template:
+        src: index.html.j2
+        dest: /var/www/myapp/index.html
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+        mode: '0644'
+
+    ###########################################################################
+    # START + VERIFY APACHE
+    ###########################################################################
+
+    - name: Start httpd service
+      systemd:
+        name: httpd
+        state: restarted
+        enabled: yes
+
+    - name: Verify service is listening
+      wait_for:
+        port: "{{ app_port }}"
+        host: "{{ ansible_facts['default_ipv4']['address'] }}"
+        timeout: 30
+
+    ###########################################################################
+    # FINAL VERIFICATION
+    ###########################################################################
+
+    - name: Check service status
+      command: systemctl status httpd
+      register: service_status
+
+    - name: Check listening ports
+      shell: "ss -tulpn | grep {{ app_port }} || true"
+      register: port_status
+
+    - name: Debug - Final verification
+      debug:
+        msg: |
+          Service Status: {{ service_status.rc == 0 }}
+          Port Listening: {{ port_status.stdout != '' }}
+
+    - name: Debug - Deployment summary
+      debug:
+        msg: |
+          Deployment completed on {{ inventory_hostname }}
+          Check the application at http://{{ ansible_facts['default_ipv4']['address'] }}:{{ app_port }}
