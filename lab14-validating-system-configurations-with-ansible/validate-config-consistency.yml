@@ -1,0 +1,164 @@
+---
+- name: Validate Configuration Consistency Across Hosts
+  hosts: all
+  gather_facts: yes
+
+  vars:
+    expected_os_family: "RedHat"
+    minimum_memory_mb: 512
+    required_services:
+      - ssh
+      - cron
+
+  tasks:
+
+    - name: Initialize consistency results
+      set_fact:
+        consistency_results: []
+        assertion_failures: []
+
+    ###########################################################################
+    # OS FAMILY VALIDATION
+    ###########################################################################
+    - name: Validate Operating System Consistency
+      block:
+
+        - name: Assert OS family consistency
+          assert:
+            that:
+              - ansible_os_family == expected_os_family
+            fail_msg: "OS Family mismatch on {{ ansible_hostname }}: expected {{ expected_os_family }}, got {{ ansible_os_family }}"
+            success_msg: "OS family validation passed for {{ ansible_hostname }}"
+
+        - name: Record OS validation success
+          set_fact:
+            consistency_results: "{{ consistency_results + [
+              {
+                'host': ansible_hostname,
+                'check': 'OS Family',
+                'status': 'PASS',
+                'actual': ansible_os_family
+              }
+            ] }}"
+
+      rescue:
+
+        - name: Record OS validation failure
+          set_fact:
+            assertion_failures: "{{ assertion_failures + [
+              {
+                'host': ansible_hostname,
+                'check': 'OS Family',
+                'status': 'FAIL',
+                'error': ansible_failed_result.msg
+              }
+            ] }}"
+
+    ###########################################################################
+    # MEMORY VALIDATION
+    ###########################################################################
+    - name: Validate Memory Requirements
+      block:
+
+        - name: Assert minimum memory requirement
+          assert:
+            that:
+              - ansible_memtotal_mb >= minimum_memory_mb
+            fail_msg: "Insufficient memory on {{ ansible_hostname }}: required {{ minimum_memory_mb }} MB, available {{ ansible_memtotal_mb }} MB"
+            success_msg: "Memory requirement satisfied for {{ ansible_hostname }}"
+
+        - name: Record memory validation success
+          set_fact:
+            consistency_results: "{{ consistency_results + [
+              {
+                'host': ansible_hostname,
+                'check': 'Memory',
+                'status': 'PASS',
+                'actual': ansible_memtotal_mb
+              }
+            ] }}"
+
+      rescue:
+
+        - name: Record memory validation failure
+          set_fact:
+            assertion_failures: "{{ assertion_failures + [
+              {
+                'host': ansible_hostname,
+                'check': 'Memory',
+                'status': 'FAIL',
+                'error': ansible_failed_result.msg
+              }
+            ] }}"
+
+    ###########################################################################
+    # SERVICE VALIDATION
+    ###########################################################################
+    - name: Gather service facts
+      service_facts:
+
+    - name: Identify missing services
+      set_fact:
+        missing_services: "{{ missing_services | default([]) + [item] }}"
+      loop: "{{ required_services }}"
+      when: item + '.service' not in ansible_facts.services
+
+    - name: Record missing services
+      set_fact:
+        assertion_failures: "{{ assertion_failures + [
+          {
+            'host': ansible_hostname,
+            'check': 'Service Presence',
+            'status': 'FAIL',
+            'error': 'Service ' ~ item ~ ' not found in ansible_facts.services'
+          }
+        ] }}"
+      loop: "{{ missing_services | default([]) }}"
+
+    - name: Validate state of services confirmed present
+      block:
+
+        - name: Assert required services are running
+          assert:
+            that:
+              - ansible_facts.services[item + '.service'].state == 'running'
+            fail_msg: "Required service {{ item }} is not running on {{ ansible_hostname }} (state: {{ ansible_facts.services[item + '.service'].state }})"
+            success_msg: "Service {{ item }} is running on {{ ansible_hostname }}"
+          loop: "{{ required_services }}"
+          when: item + '.service' in ansible_facts.services
+
+        - name: Record service validation success
+          set_fact:
+            consistency_results: "{{ consistency_results + [
+              {
+                'host': ansible_hostname,
+                'check': 'Required Services',
+                'status': 'PASS',
+                'services': required_services | join(', ')
+              }
+            ] }}"
+
+      rescue:
+
+        - name: Record service validation failure
+          set_fact:
+            assertion_failures: "{{ assertion_failures + [
+              {
+                'host': ansible_hostname,
+                'check': 'Required Services',
+                'status': 'FAIL',
+                'error': ansible_failed_result.msg
+              }
+            ] }}"
+
+    ###########################################################################
+    # FINAL REPORT
+    ###########################################################################
+    - name: Display consistency results
+      debug:
+        var: consistency_results
+
+    - name: Display assertion failures
+      debug:
+        var: assertion_failures
+      when: assertion_failures | length > 0

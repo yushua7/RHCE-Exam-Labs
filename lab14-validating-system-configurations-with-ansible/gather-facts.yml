@@ -1,0 +1,20 @@
+---
+- name: Gather and Display Disk Facts
+  hosts: all
+  gather_facts: yes
+  tasks:
+    - name: Display host and memory facts
+      debug:
+        msg: "Hostname: {{ ansible_hostname }}, Total Memory: {{ ansible_memtotal_mb }} MB, OS Family: {{ ansible_os_family }}"
+
+    - name: Show root mount point information
+      debug:
+        msg: >-
+          Mount: {{ item.mount }},
+          Device: {{ item.device }},
+          Filesystem: {{ item.fstype }},
+          Size Total (bytes): {{ item.size_total }},
+          Size Available (bytes): {{ item.size_available }}
+      loop: "{{ ansible_mounts }}"
+      when: item.mount == "/"
+
