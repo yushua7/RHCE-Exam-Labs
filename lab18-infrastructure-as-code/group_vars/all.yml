@@ -1,0 +1,5 @@
+---
+project_name: "iac-demo"
+environment: "development"
+admin_email: "admin@example.com"
+

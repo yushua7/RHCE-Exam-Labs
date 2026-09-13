@@ -1,0 +1,31 @@
+---
+- name: Deploy configuration using variables and templates
+  hosts: all
+  gather_facts: yes
+
+  vars:
+    project_name: "IAC Lab"
+    env_name: "Development"
+    admin_email: "admin@example.com"
+
+    # Web server variables
+    app_name: "MyWebApp"
+    app_version: "1.0"
+    web_server_port: 8080
+
+    # Database variables
+    db_name: "mydb"
+    db_port: 5432
+
+  tasks:
+    - name: Ensure the project directory exists
+      file:
+        path: "/tmp/iac-lab/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Render server information from template
+      template:
+        src: server-info.txt.j2
+        dest: "/tmp/iac-lab/{{ inventory_hostname }}/server-info.txt"
+        mode: '0644'

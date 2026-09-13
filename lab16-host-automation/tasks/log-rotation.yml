@@ -1,0 +1,36 @@
+---
+- name: Ensure logrotate is installed
+  dnf:
+    name: logrotate
+    state: present
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Create custom log directory
+  file:
+    path: /var/log/myapp
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Configure custom log rotation
+  template:
+    src: logrotate.j2
+    dest: "/etc/logrotate.d/{{ item.name }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - name: application-logs
+      path: /var/log/myapp/*.log
+      frequency: daily
+      rotate: 30
+      compress: yes
+      delaycompress: yes
+      missingok: yes
+      notifempty: yes
+
+- name: Test logrotate configuration
+  command: logrotate -d /etc/logrotate.conf
+  register: maintenance_logrotate_test
+  changed_when: false

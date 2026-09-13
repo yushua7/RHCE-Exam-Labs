@@ -1,0 +1,35 @@
+---
+- name: Update package cache (RHEL/CentOS)
+  dnf:
+    update_cache: yes
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Apply security updates
+  dnf:
+    name: "*"
+    state: latest
+    security: yes
+    update_only: yes
+  register: maintenance_security_updates
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Check for kernel updates requiring reboot
+  shell: |
+    if [ "$(rpm -q kernel --last | head -n1 | cut -d' ' -f1)" != "$(uname -r | sed 's/-/_/g')" ]; then
+      echo "reboot_needed"
+    else
+      echo "no_reboot_needed"
+    fi
+  register: maintenance_kernel_check
+  changed_when: false
+  when: ansible_facts.os_family == "RedHat"
+
+- name: Set reboot_required fact based on kernel check
+  set_fact:
+    reboot_required: "{{ maintenance_kernel_check.stdout == 'reboot_needed' }}"
+  when: maintenance_kernel_check is defined
+
+- name: Clean package cache
+  dnf:
+    autoremove: yes
+  when: ansible_facts.os_family == "RedHat"

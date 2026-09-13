@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Maintenance Report - {{ ansible_facts.hostname }}</title>
+</head>
+<body>
+    <h1>Comprehensive Maintenance Report</h1>
+
+    <p><strong>Host:</strong> {{ ansible_facts.hostname }}</p>
+    <p><strong>Maintenance Window Start:</strong> {{ maintenance_window_start }}</p>
+    <p><strong>Report Generated:</strong> {{ ansible_facts.date_time.iso8601 }}</p>
+
+    <h2>Pre-Maintenance Health Check</h2>
+    <ul>
+        <li>Disk Usage: {{ pre_maintenance_disk_usage | default('N/A') }}</li>
+        <li>Memory Usage: {{ pre_maintenance_memory_usage | default('N/A') }}%</li>
+        <li>Load Average: {{ pre_maintenance_load_average | default('N/A') }}</li>
+        <li>Failed Services: {{ pre_maintenance_failed_services | default('N/A') }}</li>
+    </ul>
+
+    <h2>Post-Maintenance Health Check</h2>
+    <ul>
+        <li>Disk Usage: {{ post_maintenance_disk_usage | default('N/A') }}</li>
+        <li>Memory Usage: {{ post_maintenance_memory_usage | default('N/A') }}%</li>
+        <li>Load Average: {{ post_maintenance_load_average | default('N/A') }}</li>
+        <li>Failed Services: {{ post_maintenance_failed_services | default('N/A') }}</li>
+    </ul>
+
+    <h2>Reboot Status</h2>
+    <p>Reboot required: {{ maintenance_reboot_needed | default('N/A') }}</p>
+
+    <h2>System Information</h2>
+    <ul>
+        <li>OS: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}</li>
+        <li>Kernel: {{ ansible_facts.kernel }}</li>
+        <li>Architecture: {{ ansible_facts.architecture }}</li>
+    </ul>
+</body>
+</html>

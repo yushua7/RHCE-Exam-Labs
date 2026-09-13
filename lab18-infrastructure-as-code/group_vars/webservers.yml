@@ -1,0 +1,5 @@
+---
+app_name: "demo-app"
+app_version: "1.0.0"
+web_server_port: 80
+

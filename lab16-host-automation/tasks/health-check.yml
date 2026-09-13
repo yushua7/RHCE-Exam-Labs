@@ -1,0 +1,38 @@
+---
+- name: "{{ check_phase | title }} - Gather system information"
+  setup:
+
+- name: "{{ check_phase | title }} - Check disk usage"
+  shell: df -h | awk 'NR>1 {print $5 " " $6}' | sed 's/%//'
+  register: disk_usage
+  changed_when: false
+
+- name: "{{ check_phase | title }} - Check memory usage"
+  shell: free | grep Mem | awk '{printf "%.2f", ($3/$2) * 100.0}'
+  register: memory_usage
+  changed_when: false
+
+- name: "{{ check_phase | title }} - Check system load"
+  shell: uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//'
+  register: load_average
+  changed_when: false
+
+- name: "{{ check_phase | title }} - Check for failed systemd services"
+  shell: systemctl --failed --no-legend | wc -l
+  register: failed_services_count
+  changed_when: false
+
+- name: "{{ check_phase | title }} - Record health check facts"
+  set_fact:
+    "{{ check_phase | replace('-', '_') }}_disk_usage": "{{ disk_usage.stdout_lines }}"
+    "{{ check_phase | replace('-', '_') }}_memory_usage": "{{ memory_usage.stdout }}"
+    "{{ check_phase | replace('-', '_') }}_load_average": "{{ load_average.stdout }}"
+    "{{ check_phase | replace('-', '_') }}_failed_services": "{{ failed_services_count.stdout }}"
+
+- name: "{{ check_phase | title }} - Display health summary"
+  debug:
+    msg: >
+      [{{ check_phase }}] Disk: {{ disk_usage.stdout_lines }},
+      Memory: {{ memory_usage.stdout }}%,
+      Load: {{ load_average.stdout }},
+      Failed services: {{ failed_services_count.stdout }}

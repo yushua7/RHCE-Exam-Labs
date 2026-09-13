@@ -1,0 +1,3 @@
+---
+db_name: "application_db"
+db_port: 3306

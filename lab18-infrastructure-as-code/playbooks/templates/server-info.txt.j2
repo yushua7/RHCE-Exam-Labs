@@ -1,0 +1,20 @@
+Server Information Report
+==========================
+Project: {{ project_name }}
+Environment: {{ environment }}
+Host: {{ inventory_hostname }}
+Distribution: {{ ansible_distribution }} {{ ansible_distribution_version }}
+
+{% if inventory_hostname in groups['webservers'] %}
+Web Server Role:
+  Application: {{ app_name }} v{{ app_version }}
+  Port: {{ web_server_port }}
+{% endif %}
+
+{% if inventory_hostname in groups['databases'] %}
+Database Role:
+  Database Name: {{ db_name }}
+  Port: {{ db_port }}
+{% endif %}
+
+Contact: {{ admin_email }}

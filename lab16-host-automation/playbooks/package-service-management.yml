@@ -1,0 +1,86 @@
+---
+- name: System Package and Service Management
+  hosts: all
+  become: yes
+
+  vars:
+    required_packages:
+      - htop
+      - vim
+      - curl
+      - wget
+      - git
+      - rsync
+      - logrotate
+      - chrony
+
+    required_services:
+      - chronyd
+      - sshd
+
+    packages_to_remove:
+      - telnet
+      - rsh
+
+  tasks:
+    # -----------------------------
+    # PACKAGE CACHE UPDATE
+    # -----------------------------
+    - name: Update package cache (RHEL/CentOS)
+      dnf:
+        update_cache: yes
+      when: ansible_pkg_mgr == "dnf"
+
+    - name: Update package cache (Ubuntu/Debian)
+      apt:
+        update_cache: yes
+      when: ansible_pkg_mgr == "apt"
+
+    # -----------------------------
+    # INSTALL REQUIRED PACKAGES
+    # -----------------------------
+    - name: Install required packages (RHEL/CentOS)
+      dnf:
+        name: "{{ required_packages }}"
+        state: present
+      when: ansible_pkg_mgr == "dnf"
+
+    - name: Install required packages (Ubuntu/Debian)
+      apt:
+        name: "{{ required_packages }}"
+        state: present
+      when: ansible_pkg_mgr == "apt"
+
+    # -----------------------------
+    # REMOVE UNWANTED PACKAGES
+    # -----------------------------
+    - name: Remove unwanted packages (RHEL/CentOS)
+      dnf:
+        name: "{{ packages_to_remove }}"
+        state: absent
+      when: ansible_pkg_mgr == "dnf"
+
+    - name: Remove unwanted packages (Ubuntu/Debian)
+      apt:
+        name: "{{ packages_to_remove }}"
+        state: absent
+      when: ansible_pkg_mgr == "apt"
+
+    # -----------------------------
+    # SERVICE MANAGEMENT
+    # -----------------------------
+    - name: Ensure required services are started and enabled
+      systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: "{{ required_services }}"
+
+    - name: Gather service facts
+      service_facts:
+
+    - name: Display service status
+      debug:
+        msg: "Service {{ item }} is {{ ansible_facts.services[item + '.service'].state }}"
+      loop: "{{ required_services }}"
+      when: ansible_facts.services[item + '.service'] is defined

@@ -1,0 +1,143 @@
+---
+###############################################################################
+# BASELINE CONFIGURATION FOR ALL HOSTS
+###############################################################################
+- name: Baseline configuration for all hosts
+  hosts: all
+  gather_facts: yes
+  become: no
+
+  tasks:
+    - name: Ensure a shared project directory exists
+      file:
+        path: "/tmp/iac-lab/{{ inventory_hostname }}"
+        state: directory
+        mode: '0755'
+
+    - name: Record host facts to a local file
+      copy:
+        content: |
+          Host: {{ inventory_hostname }}
+          Group(s): {{ group_names }}
+          OS Family: {{ ansible_facts['os_family'] }}
+          Distribution: {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+        dest: "/tmp/iac-lab/{{ inventory_hostname }}/facts.txt"
+
+###############################################################################
+# WEB SERVER CONFIGURATION
+###############################################################################
+- name: Configure web servers
+  hosts: webservers
+  gather_facts: yes
+  become: yes
+
+  vars:
+    app_port: 8080
+    web_user: webadmin
+    web_group: webadmin
+
+  tasks:
+    ###########################################################################
+    # USER + GROUP
+    ###########################################################################
+    - name: Ensure web group exists
+      group:
+        name: "{{ web_group }}"
+        state: present
+
+    - name: Ensure web user exists
+      user:
+        name: "{{ web_user }}"
+        group: "{{ web_group }}"
+        home: "/home/{{ web_user }}"
+        shell: /bin/bash
+        state: present
+
+    ###########################################################################
+    # APACHE INSTALL + CONFIG
+    ###########################################################################
+    - name: Install Apache and tools
+      dnf:
+        name:
+          - httpd
+          - git
+          - python3-pip
+        state: present
+
+    - name: Remove default Apache configs that override ports
+      file:
+        path: "/etc/httpd/conf.d/{{ item }}"
+        state: absent
+      loop:
+        - welcome.conf
+        - autoindex.conf
+        - userdir.conf
+        - ssl.conf
+
+    - name: Allow Apache to bind to custom port in SELinux
+      seport:
+        ports: "{{ app_port }}"
+        proto: tcp
+        setype: http_port_t
+        state: present
+
+    - name: Open custom port in firewalld
+      firewalld:
+        port: "{{ app_port }}/tcp"
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Ensure Apache listens on custom port
+      lineinfile:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: '^Listen'
+        line: "Listen {{ app_port }}"
+        backup: yes
+
+    ###########################################################################
+    # DEPLOY APPLICATION
+    ###########################################################################
+    - name: Create application directory
+      file:
+        path: /var/www/myapp
+        state: directory
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+        mode: '0755'
+
+    - name: Deploy index page
+      copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head><title>{{ inventory_hostname }}</title></head>
+          <body>
+            <h1>Web Server: {{ inventory_hostname }}</h1>
+            <p>Running on port {{ app_port }}</p>
+          </body>
+          </html>
+        dest: /var/www/myapp/index.html
+        owner: "{{ web_user }}"
+        group: "{{ web_group }}"
+        mode: '0644'
+
+###############################################################################
+# DATABASE SERVER CONFIGURATION
+###############################################################################
+- name: Configure database servers
+  hosts: databases
+  gather_facts: yes
+  become: yes
+
+  tasks:
+    - name: Create simulated database directory
+      file:
+        path: "/tmp/iac-lab/{{ inventory_hostname }}/data"
+        state: directory
+        mode: '0700'
+
+    - name: Write placeholder database marker file
+      copy:
+        content: "Database server {{ inventory_hostname }} is configured.\n"
+        dest: "/tmp/iac-lab/{{ inventory_hostname }}/data/db_marker.txt"
