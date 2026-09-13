@@ -1,0 +1,75 @@
+---
+- name: Manage SELinux Booleans for Applications
+  hosts: selinux_servers
+  become: yes
+
+  tasks:
+    - name: List current SELinux booleans status
+      command: getsebool -a
+      register: current_booleans
+      changed_when: false
+
+    - name: Show some current boolean values
+      debug:
+        msg: "{{ current_booleans.stdout_lines }}"
+
+    - name: Enable httpd to connect to network
+      seboolean:
+        name: httpd_can_network_connect
+        state: yes
+        persistent: yes
+      register: httpd_network
+
+    - name: Enable httpd to connect to database
+      seboolean:
+        name: httpd_can_network_connect_db
+        state: yes
+        persistent: yes
+      register: httpd_db
+
+    - name: Enable Samba to export all read/write
+      seboolean:
+        name: samba_export_all_rw
+        state: yes
+        persistent: yes
+      register: samba_rw
+      ignore_errors: yes
+
+    - name: Enable FTP full access
+      seboolean:
+        name: ftpd_full_access
+        state: yes
+        persistent: yes
+      register: ftp_access
+      ignore_errors: yes
+
+    - name: Disable SELinux protection for NFS
+      seboolean:
+        name: nfs_export_all_rw
+        state: no
+        persistent: yes
+      register: nfs_protection
+      ignore_errors: yes
+
+    - name: Display boolean change results
+      debug:
+        msg: "Boolean {{ item.name }} changed: {{ item.result.changed }}"
+      loop:
+        - { name: "httpd_can_network_connect", result: "{{ httpd_network }}" }
+        - { name: "httpd_can_network_connect_db", result: "{{ httpd_db }}" }
+        - { name: "ftpd_full_access", result: "{{ ftp_access }}" }
+      when: item.result is defined
+
+    - name: Verify boolean changes
+      command: getsebool {{ item }}
+      register: verify_booleans
+      changed_when: false
+      loop:
+        - httpd_can_network_connect
+        - httpd_can_network_connect_db
+        - ftpd_full_access
+
+    - name: Show verified boolean values
+      debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ verify_booleans.results }}"
